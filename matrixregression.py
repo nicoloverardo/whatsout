@@ -22,27 +22,29 @@ class MatrixRegression(BaseEstimator):
     421 - 426. 10.1109/CBMS.2007.108.
     """
 
-    def __init__(self, threshold):
+    def __init__(self, threshold = 0.5, vectorizer = None):
         """
         Parameters
         ----------
-        threshold : float
+        threshold : float (default=0.5)
             The threshold value used to filter categories.
+        
+        vectorizer : object (default=None)
+            The TfidfVectorizer.
         """
 
-        # TODO: set a default threshold value?
         self.threshold = threshold
 
-        # TODO: Maybe we'll want to add the possibility to pass
-        # the vectorizer as a parameter in order for the
-        # user to specify its parameters manually.
-        # Pass it with default value None and then assign it like:
-        #
-        # self.tfidf = TfidfVectorizer() if vectorizer is None else vectorizer
-        #
-        # where 'vectorizer' is the param name.
-        # Maybe also check for the correct type...
-        self.tfidf = TfidfVectorizer()        
+        # Check also that the vectorizer tokenizes
+        # to words and not sentences.
+        if vectorizer is not None:
+            if type(vectorizer) != type(TfidfVectorizer()):
+                raise TypeError('The vectorizer should be of a TfidfVectorizer.')
+            
+            self.tfidf = vectorizer
+        else:
+            self.tfidf = TfidfVectorizer()    
+
 
     def fit(self, X, y, labels):
         """ 
@@ -123,10 +125,6 @@ class MatrixRegression(BaseEstimator):
 
             W_prime = F.dot(W)
 
-            # Nope, don't like this too.
-            # TODO: can we avoid a for loop?
-            # Check also that the access to the
-            # 2-dimensional array is done correctly.
             for j, c in enumerate(W_prime):
                 y[i,j] = 1 if c > self.threshold else 0
 

@@ -22,24 +22,25 @@ class MatrixRegression(BaseEstimator):
     421 - 426. 10.1109/CBMS.2007.108.
     """
 
-    def __init__(self, threshold = 0.5, vectorizer = None):
+    def __init__(self, threshold, vectorizer = None):
         """
         Parameters
         ----------
-        threshold : float (default=0.5)
+        threshold : float
             The threshold value used to filter categories.
         
         vectorizer : object (default=None)
             The TfidfVectorizer.
         """
 
+        # TODO: implement the threshold value selection
         self.threshold = threshold
 
         # Check also that the vectorizer tokenizes
         # words and not sentences.
         if vectorizer is not None:
-            if type(vectorizer) != type(TfidfVectorizer()):
-                raise TypeError('The vectorizer should be of a TfidfVectorizer.')
+            if isinstance(vectorizer, TfidfVectorizer):
+                raise TypeError('The vectorizer should be an instance of class TfidfVectorizer.')
             
             self.tfidf = vectorizer
         else:
@@ -75,6 +76,7 @@ class MatrixRegression(BaseEstimator):
         self.T = self.tfidf.get_feature_names()
         self.C = labels
 
+        # TODO: maybe we can work with a sparse W?
         self.W = np.zeros((n_terms, n_categories))
 
         for d in range(n_documents):
@@ -104,29 +106,20 @@ class MatrixRegression(BaseEstimator):
             The predicted categories.
         """
 
-        T = self.T
-        C = self.C
-        W = self.W
+        y = np.zeros((len(X), len(self.C)), dtype=int)
 
-        y = np.zeros((len(X), len(C)))
-
-        # Nope, don't like this.
-        # TODO: can we avoid a for loop?
+        # TODO: speed up this loop if possible
         for i, x in enumerate(X):
-            # 'x' should be a single string of text that contains
-            # the entire document. Thus, we need to split it.
-            # TODO: check for the correct input handling
-            # and formats.
             T_d = set(x.split())
             
-            F = np.zeros(len(T))
+            F = np.zeros(len(self.T))
 
-            T_prime = T_d.intersection(T)  
+            T_prime = T_d.intersection(self.T)  
 
             for t in T_prime:
-                F[T.index(t)] = 1
+                F[self.T.index(t)] = 1
 
-            W_prime = F.dot(W)
+            W_prime = F.dot(self.W)
 
             for j, c in enumerate(W_prime):
                 y[i,j] = 1 if c > self.threshold else 0

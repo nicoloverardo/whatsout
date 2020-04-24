@@ -36,7 +36,7 @@ class MatrixRegression(BaseEstimator):
         self.threshold = threshold
 
         # Check also that the vectorizer tokenizes
-        # to words and not sentences.
+        # words and not sentences.
         if vectorizer is not None:
             if type(vectorizer) != type(TfidfVectorizer()):
                 raise TypeError('The vectorizer should be of a TfidfVectorizer.')
@@ -70,20 +70,23 @@ class MatrixRegression(BaseEstimator):
 
         n_categories = len(labels)
         n_terms = X_tfidf.shape[1]
+        n_documents = X_tfidf.shape[0]
 
         self.T = self.tfidf.get_feature_names()
         self.C = labels
 
         self.W = np.zeros((n_terms, n_categories))
 
-        for d in range(n_terms):
-            x_nnz = X_tfidf[d,].non_zero()[1]
+        for d in range(n_documents):
+            # Get terms of the current document
+            x_nnz = X_tfidf[d,].nonzero()[1]
+
+            # Get categories of the current document
+            y_nnz = y[d,].nonzero()[0]
 
             for i in x_nnz:
-                y_nnz = y[i,].non_zero()[0]
-
                 for j in y_nnz:
-                    self.W[i,j] += X_tfidf[i,j]
+                    self.W[i,j] += X_tfidf[d,i]
     
     def predict(self, X):
         """ 

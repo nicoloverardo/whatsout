@@ -8,6 +8,8 @@
 
 import numpy as np
 
+from joblib import Parallel, delayed
+
 from sklearn.base import BaseEstimator
 from sklearn.feature_extraction.text import TfidfVectorizer
 
@@ -24,34 +26,35 @@ class MatrixRegression(BaseEstimator):
     421 - 426. 10.1109/CBMS.2007.108.
     """
 
-    def __init__(self, threshold):
+    def __init__(self, labels, threshold = 0.5):
         """
         Parameters
         ----------
-        threshold : float
+        labels : {array-like or list} of shape (n_labels,)
+            The name of the categories
+
+        threshold : float (defalut=0.5)
             The threshold value used to filter categories.
         """
 
         # TODO: implement the threshold value selection
         self.threshold = threshold
 
-        self.tfidf = OnlineTfidfVectorizer()   
+        self.labels = labels
 
+        self.tfidf = OnlineTfidfVectorizer()
 
-    def fit(self, X, y, labels):
+    def fit(self, X, y):
         """ 
         Fit the MatrixRegression algorithm
-
+        
         Parameters
         ----------
         X : array-like of shape (n_documents,)
-            The documents of the training collection
+            The documents of the training collection.
 
         y : array-like of shape (n_documents, n_labels)
             The target labels of the documents (i.e.: the categories)
-
-        labels : {array-like or list} of shape (n_labels,)
-            The name of the categories
         
         Returns
         -------
@@ -81,6 +84,7 @@ class MatrixRegression(BaseEstimator):
                 for j in y_nnz:
                     self.W[i,j] += X_tfidf[d,i]
 
+        return self
 
     def partial_fit(self, X, y, labels):
         """ 
@@ -124,9 +128,9 @@ class MatrixRegression(BaseEstimator):
 
         y = np.zeros((len(X), len(self.C)), dtype=int)
 
-        # TODO: speed up this loop if possible
-        for i, x in enumerate(X):
-            T_d = set(x.split())
+        # TODO: parallelize
+        for i in range(X.shape[0]):
+            T_d = set(X[i].split())
             
             F = np.zeros(len(self.T))
 
@@ -137,13 +141,12 @@ class MatrixRegression(BaseEstimator):
 
             W_prime = F.dot(self.W)
 
-            for j, c in enumerate(W_prime):
-                y[i,j] = 1 if c > self.threshold else 0
+            for j in range(W_prime.shape[0]):
+                y[i,j] = 1 if W_prime[j] > self.threshold else 0
 
         return y
 
-
     # Do we need this in order to use MR
-    # with sklearn (i.e.: for cross validation) functions?
-    def score(self, X, y):
-        raise NotImplementedError('Yet to be implemented.')
+    # with sklearn functions? (i.e.: for cross validation)
+    #def score(self, X, y):
+        #raise NotImplementedError('Yet to be implemented.')

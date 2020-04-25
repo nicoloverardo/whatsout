@@ -26,7 +26,7 @@ class MatrixRegression(BaseEstimator):
     421 - 426. 10.1109/CBMS.2007.108.
     """
 
-    def __init__(self, labels, threshold = 0.5):
+    def __init__(self, labels = None, threshold = 0.5):
         """
         Parameters
         ----------
@@ -40,14 +40,14 @@ class MatrixRegression(BaseEstimator):
         # TODO: implement the threshold value selection
         self.threshold = threshold
 
-        self.labels = labels
+        self.C = labels
 
         self.tfidf = OnlineTfidfVectorizer()
 
     def fit(self, X, y):
         """ 
         Fit the MatrixRegression algorithm
-        
+
         Parameters
         ----------
         X : array-like of shape (n_documents,)
@@ -63,12 +63,14 @@ class MatrixRegression(BaseEstimator):
 
         X_tfidf = self.tfidf.fit_transform(X)
 
-        n_categories = len(labels)
+        # Get number of categories from the param
+        # passed in the constructor or from the labels y
+        n_categories = self._get_n_categories(self.C, y)
+
         n_terms = X_tfidf.shape[1]
         n_documents = X_tfidf.shape[0]
 
         self.T = self.tfidf.get_feature_names()
-        self.C = labels
 
         # Maybe we can work with a sparse W?
         self.W = np.zeros((n_terms, n_categories))
@@ -83,8 +85,6 @@ class MatrixRegression(BaseEstimator):
             for i in x_nnz:
                 for j in y_nnz:
                     self.W[i,j] += X_tfidf[d,i]
-
-        return self
 
     def partial_fit(self, X, y, labels):
         """ 
@@ -146,7 +146,21 @@ class MatrixRegression(BaseEstimator):
 
         return y
 
-    # Do we need this in order to use MR
-    # with sklearn functions? (i.e.: for cross validation)
-    #def score(self, X, y):
-        #raise NotImplementedError('Yet to be implemented.')
+
+    def _get_n_categories(self, a, b):
+        if a is not None:
+            return self._get_dim_from_type(a)
+        else:
+            return self._get_dim_from_type(b)              
+    
+    def _get_dim_from_type(self, x):
+        if isinstance(x, np.ndarray):
+            if x.ndim >= 2:
+                return x.shape[1]
+            elif x.dim == 1:
+                return 1
+        elif isinstance(x, list):
+            return len(x)
+        else:
+            raise TypeError('Cannot get the number of categories'\
+                'from type ' + str(type(x)))

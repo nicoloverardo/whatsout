@@ -11,6 +11,8 @@ import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.feature_extraction.text import TfidfVectorizer
 
+from online_vectorizers.online_vectorizers import OnlineTfidfVectorizer
+
 class MatrixRegression(BaseEstimator):
     """ 
     Implementation of the MatrixRegression (MR) algorithm
@@ -22,29 +24,18 @@ class MatrixRegression(BaseEstimator):
     421 - 426. 10.1109/CBMS.2007.108.
     """
 
-    def __init__(self, threshold, vectorizer = None):
+    def __init__(self, threshold):
         """
         Parameters
         ----------
         threshold : float
             The threshold value used to filter categories.
-        
-        vectorizer : object (default=None)
-            The TfidfVectorizer.
         """
 
         # TODO: implement the threshold value selection
         self.threshold = threshold
 
-        # Check also that the vectorizer tokenizes
-        # words and not sentences.
-        if vectorizer is not None:
-            if isinstance(vectorizer, TfidfVectorizer):
-                raise TypeError('The vectorizer should be an instance of class TfidfVectorizer.')
-            
-            self.tfidf = vectorizer
-        else:
-            self.tfidf = TfidfVectorizer()    
+        self.tfidf = OnlineTfidfVectorizer()   
 
 
     def fit(self, X, y, labels):
@@ -76,7 +67,7 @@ class MatrixRegression(BaseEstimator):
         self.T = self.tfidf.get_feature_names()
         self.C = labels
 
-        # TODO: maybe we can work with a sparse W?
+        # Maybe we can work with a sparse W?
         self.W = np.zeros((n_terms, n_categories))
 
         for d in range(n_documents):
@@ -89,6 +80,31 @@ class MatrixRegression(BaseEstimator):
             for i in x_nnz:
                 for j in y_nnz:
                     self.W[i,j] += X_tfidf[d,i]
+
+
+    def partial_fit(self, X, y, labels):
+        """ 
+        Update the algorithm with new data without
+        re-training it from scratch.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_documents,)
+            The documents of the training collection
+
+        y : array-like of shape (n_documents, n_labels)
+            The target labels of the documents (i.e.: the categories)
+
+        labels : {array-like or list} of shape (n_labels,)
+            The name of the categories
+        
+        Returns
+        -------
+        self : object
+        """
+
+        raise NotImplementedError('Yet to be implemented.')
+
     
     def predict(self, X):
         """ 
@@ -125,3 +141,9 @@ class MatrixRegression(BaseEstimator):
                 y[i,j] = 1 if c > self.threshold else 0
 
         return y
+
+
+    # Do we need this in order to use MR
+    # with sklearn (i.e.: for cross validation) functions?
+    def score(self, X, y):
+        raise NotImplementedError('Yet to be implemented.')

@@ -11,12 +11,13 @@ import numpy as np
 import multiprocessing
 from joblib import Parallel, delayed
 
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import MinMaxScaler
 
 from online_vectorizers.online_vectorizers import OnlineTfidfVectorizer
 
-class MatrixRegression(BaseEstimator):
+class MatrixRegression(BaseEstimator, ClassifierMixin):
     """ 
     Implementation of the MatrixRegression (MR) algorithm
     as presented in the following paper:
@@ -28,31 +29,20 @@ class MatrixRegression(BaseEstimator):
 
     Parameters
     ----------
-    labels : {array-like or list} of shape (n_labels,)
-        The name of the categories
-
-    threshold : float (defalut=0.5)
+    threshold : float (defalut=None)
         The threshold value used to filter categories.
+        Must be in the range (0, 1).
 
-    n_jobs : int (default=-1)
+    n_jobs : int (default=None)
         The number of jobs to run in parallel. Fit, partial_fit 
-        and predict are parallelized. -1 means using all processors.
+        and predict will be parallelized. -1 means using all processors.
     """
 
-    def __init__(self, labels = None, threshold = 0.5,
-                 n_jobs = None):
-
-        # TODO: implement the threshold value selection
+    def __init__(self, threshold=None, n_jobs=None):
         self.threshold = threshold
-        self.C = labels
+        self.n_jobs = n_jobs
         self.tfidf = OnlineTfidfVectorizer()
-
-        if n_jobs is None or n_jobs == 0:
-            self.n_jobs = 1
-        elif n_jobs != -1 and n_jobs <= multiprocessing.cpu_count():
-            self.n_jobs = n_jobs
-        else:
-            self.n_jobs = multiprocessing.cpu_count()
+        self.scaler = MinMaxScaler(copy = False)
 
 
     def fit(self, X, y):
@@ -72,12 +62,32 @@ class MatrixRegression(BaseEstimator):
         self : object
         """
 
-        X_tfidf = self.tfidf.fit_transform(X)
+        if self.threshold is not None:
+            if self.threshold <= 0 or self.threshold >= 1:
+                raise ValueError('The threshold must be between 0 and 1.')
 
-        n_categories = len(self.C)
+        if self.n_jobs is None or self.n_jobs == 0:
+            self.n_jobs = 1
+        elif self.n_jobs != -1 and self.n_jobs <= multiprocessing.cpu_count():
+            self.n_jobs = self.n_jobs
+        else:
+            self.n_jobs = multiprocessing.cpu_count()
+
+        if isinstance(y, np.ndarray):
+            if y.ndim >= 2:
+                n_categories = y.shape[1]
+            else:
+                n_categories = 1
+        elif isinstance(y, list):
+            n_categories = len(y)
+        else:
+            raise ValueError('Cannot get the number of categories') 
+
+
+        X_tfidf = self.tfidf.fit_transform(X)
         n_documents, n_terms = X_tfidf.shape
 
-        self.T = self.tfidf.get_feature_names()
+        self.T = np.array(self.tfidf.get_feature_names(), dtype = 'object')
 
         # Maybe we can work with a sparse W?
         self.W = np.zeros((n_terms, n_categories))
@@ -90,9 +100,9 @@ class MatrixRegression(BaseEstimator):
             for i in x_nnz:
                 for j in y_nnz:
                     self.W[i,j] += X_tfidf[d,i]
-
-
-    def partial_fit(self, X, y, labels):
+    
+    
+    def partial_fit(self, X, y, old_labels, new_labels):
         """ 
         Update the algorithm with new data without
         re-training it from scratch.
@@ -105,21 +115,18 @@ class MatrixRegression(BaseEstimator):
         y : array-like of shape (n_documents, n_labels)
             The target labels of the documents (i.e.: the categories)
 
-        labels : {array-like or list} of shape (n_labels,)
-            The name of the categories
+        old_labels : {array-like or list} of shape (n_labels,)
+            The name of the categories used to fit the algorithm.
+        
+        new_labels : {array-like or list} of shape (n_labels,)
+            The name of the categories for the new data X.
         
         Returns
         -------
         self : object
         """
 
-        X_tfidf = self.tfidf.partial_refit_transform(X)
-
-        new_categories = set(labels) - set(self.C)
-        n_new_categories = len(new_categories)
-        n_new_terms = set(self.tfidf.get_feature_names()) - set(self.T)
-
-
+        # TODO
 
         raise NotImplementedError('Yet to be implemented.')
 
@@ -140,24 +147,30 @@ class MatrixRegression(BaseEstimator):
             The predicted categories.
         """
 
-        y = np.zeros((len(X), len(self.C)), dtype=int)
+        tokenizer = self.tfidf.build_tokenizer()
+        y = np.zeros((len(X), self.W.shape[1]), dtype=int)
 
         # TODO: parallelize
-        for i in range(X.shape[0]):
-            T_d = set(X[i].split())
-            
-            F = np.zeros(len(self.T))
+        for i in range(X.shape[0]):          
+            T_d = np.sort(np.array(tokenizer(X[i]), dtype = 'object'))
 
-            T_prime = T_d.intersection(self.T)
+            T_prime, x_ind, _ = np.intersect1d(self.T, T_d, return_indices=True)
 
-            for t in T_prime:
-                F[self.T.index(t)] = 1
+            F = np.zeros(self.T.shape[0])
+            F[x_ind] = 1
 
             W_prime = np.dot(F, self.W)
 
-            y[i,] = np.where(W_prime > self.threshold, 1, 0)
+            y[i,] = W_prime
 
-            #for j in range(W_prime.shape[0]):
-                #y[i,j] = 1 if W_prime[j] > self.threshold else 0
+
+        # Scale between 0 and 1
+        y = self.scaler.fit_transform(y)
+
+        # Use the median when the threshold is not specified
+        if self.threshold is None:
+            y = np.where(y > np.median(y), 1, 0)
+        else:
+            y = np.where(y > self.threshold, 1, 0)
 
         return y

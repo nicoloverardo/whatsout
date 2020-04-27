@@ -12,7 +12,7 @@ import multiprocessing
 from joblib import Parallel, delayed
 
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.feature_extraction.text import TfidfVectorizer
+#from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import MinMaxScaler
 
 from online_vectorizers.online_vectorizers import OnlineTfidfVectorizer

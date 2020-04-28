@@ -12,7 +12,6 @@ import multiprocessing
 from joblib import Parallel, delayed
 
 from sklearn.base import BaseEstimator, ClassifierMixin
-#from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import MinMaxScaler
 
 from online_vectorizers.online_vectorizers import OnlineTfidfVectorizer
@@ -131,9 +130,9 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
         raise NotImplementedError('Yet to be implemented.')
 
 
-    def predict(self, X):
-        """ 
-        Predict categories for the documents in X
+    def _predict_weights(self, X):
+        """
+        Compute the categories weights for new data X
 
         Parameters
         ----------
@@ -144,8 +143,9 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
         Returns
         -------
         y : array-like of shape (n_documents, n_labels)
-            The predicted categories.
+            The predicted categories weights (i.e.: W').
         """
+
 
         tokenizer = self.tfidf.build_tokenizer()
         y = np.zeros((len(X), self.W.shape[1]), dtype=int)
@@ -162,6 +162,24 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
             W_prime = np.dot(F, self.W)
 
             y[i,] = W_prime
+        
+        return y
+
+
+    def _predict_categories(self, y):
+        """
+        Filter categories using the threshold value
+
+        Parameters
+        ----------
+        y : array-like of shape (n_documents, n_labels)
+            The predicted categories weights (i.e.: W')
+        
+        Returns
+        -------
+        y : array-like of shape (n_documents, n_labels)
+            The predicted categories.
+        """
 
 
         # Scale between 0 and 1
@@ -174,3 +192,23 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
             y = np.where(y > self.threshold, 1, 0)
 
         return y
+
+
+    def predict(self, X):
+        """ 
+        Predict categories for the documents in X
+
+        Parameters
+        ----------
+        X : array-like of shape (n_documents,)
+            The documents whose categories are to be
+            predicted.
+
+        Returns
+        -------
+        y : array-like of shape (n_documents, n_labels)
+            The predicted categories.
+        """
+
+
+        return self._predict_categories(self._predict_weights(X))

@@ -40,9 +40,8 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
     def __init__(self, threshold=None, n_jobs=None):
         self.threshold = threshold
         self.n_jobs = n_jobs
-        self.tfidf = OnlineTfidfVectorizer()
+        self.vectorizer = OnlineTfidfVectorizer()
         self.scaler = MinMaxScaler(copy = False)
-
 
     def fit(self, X, y):
         """ 
@@ -72,23 +71,14 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
         else:
             self.n_jobs = multiprocessing.cpu_count()
 
-        if isinstance(y, np.ndarray):
-            if y.ndim >= 2:
-                n_categories = y.shape[1]
-            else:
-                n_categories = 1
-        elif isinstance(y, list):
-            n_categories = len(y)
-        else:
-            raise ValueError('Cannot get the number of categories') 
 
-
-        X_tfidf = self.tfidf.fit_transform(X)
+        X_tfidf = self.vectorizer.fit_transform(X)
         n_documents, n_terms = X_tfidf.shape
 
-        self.T = np.array(self.tfidf.get_feature_names(), dtype = 'object')
+        n_categories = self._get_number_catgories(y)
 
-        # Maybe we can work with a sparse W?
+        self.terms = np.array(self.vectorizer.get_feature_names(), dtype = 'object')
+
         self.W = np.zeros((n_terms, n_categories))
 
         # TODO: parallelize
@@ -96,13 +86,11 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
             x_nnz = X_tfidf[d,].nonzero()[1]
             y_nnz = y[d,].nonzero()[0]
 
-            for i in x_nnz:
-                for j in y_nnz:
-                    self.W[i,j] += X_tfidf[d,i]
+            self._set_weights_values(X_tfidf, x_nnz, y_nnz, d)
 
         return self
     
-    def partial_fit(self, X, y, old_labels, new_labels):
+    def partial_fit(self, X, y):
         """ 
         Update the algorithm with new data without
         re-training it from scratch.
@@ -114,68 +102,97 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
 
         y : array-like of shape (n_documents, n_labels)
             The target labels of the documents (i.e.: the categories)
-
-        old_labels : {array-like or list} of shape (n_labels,)
-            The name of the categories used to fit the algorithm.
-        
-        new_labels : {array-like or list} of shape (n_labels,)
-            The name of the categories for the new data X.
         
         Returns
         -------
         self : object
         """
 
+        old_vocab = self.vectorizer.vocabulary_.copy()
 
-        old_vocab = self.tfidf.vocabulary_
-
-        X_tfidf = self.tfidf.partial_refit_transform(X)
+        X_tfidf = self.vectorizer.partial_refit_transform(X)
 
         # Probably this is gonna be slow
-        new_vocab = { k : self.tfidf.vocabulary_[k] for k in set(self.tfidf.vocabulary_) - set(old_vocab) }
+        new_vocab = { k : self.vectorizer.vocabulary_[k] for k in set(self.vectorizer.vocabulary_) - set(old_vocab) }
 
         n_new_terms = len(new_vocab)
 
-        # If y is 2-dim, we can compute this like:
-        #   n_new_categories = y.shape[1] - self.W.shape[1]
-        # so that the labels list are not needed.
-        n_new_categories = len(set(new_labels) - set(old_labels))
+        # y must contain both the old categories
+        # and the new one(s).
+        n_new_categories = self._get_number_catgories(y) - self.W.shape[1]
 
         # Expand W.
         # Probably self.W.resize is faster?
         if n_new_terms > 0:
-            self.W = np.concatenate((self.W, np.zeros((n_new_terms,))))
+            self.W = np.concatenate((self.W, 
+                                     np.zeros((n_new_terms, self.W.shape[1]))))
         if n_new_categories > 0:
-            self.W = np.concatenate((self.W, np.zeros((n_new_categories,))), axis = 1)
+            self.W = np.concatenate((self.W, 
+                                     np.zeros((self.W.shape[0], n_new_categories))), axis = 1)
 
         new_terms = np.fromiter(new_vocab.values(), dtype=int)
 
         n_documents, n_terms = X_tfidf.shape
 
-        self.T = np.array(self.tfidf.get_feature_names(), dtype = 'object')
+        self.terms = np.array(self.vectorizer.get_feature_names(), dtype = 'object')
 
         # TODO test this
         for d in range(n_documents):
             # Get only the terms that we need to update
             x_nnz = np.intersect1d(X_tfidf[d,].nonzero()[1], new_terms)
 
+            # Still need to check that
+            # x_nnz and/or y_nnz are not empty
             y_nnz = y[d,].nonzero()[0]
+        
+            # Set the weights of terms we need to update
+            # to zero. This should be faster:
+            #
+            #   self.W[x_nnz, y_nnz] = 0
+            #
+            # Still need to test it though.
 
-            # TODO change this to a faster way
             for i in x_nnz:
                 for j in y_nnz:
                     self.W[i,j] = 0
 
-            for i in x_nnz:
-                for j in y_nnz:
-                    self.W[i,j] += X_tfidf[d,i]
+            self._set_weights_values(X_tfidf, x_nnz, y_nnz, d)
 
         return self
 
+    def _set_weights_values(self, X, x_nnz, y_nnz, d):
+        for i in x_nnz:
+            for j in y_nnz:
+                self.W[i,j] += X[d,i]
 
-    def _predict_weights(self, X):
+    def _get_number_catgories(self, y):
         """
-        Compute the categories weights for new data X
+        Get the number of categories from the labels.
+
+        Parameters
+        ----------
+        y : array-like of shape (n_documents, n_labels)
+            The target labels of the documents (i.e.: the categories)
+
+        Returns
+        -------
+        n : int
+            The number of categories
+        """
+
+        if isinstance(y, np.ndarray):
+            if y.ndim == 2:
+                return y.shape[1]
+            else:
+                return 1
+        elif isinstance(y, list):
+            return len(y)
+        else:
+            raise ValueError('Cannot get the number of categories.')
+    
+    def _compute_weights(self, X):
+        """
+        Compute the categories weights for new data X.
 
         Parameters
         ----------
@@ -189,17 +206,16 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
             The predicted categories weights (i.e.: W').
         """
 
-
-        tokenizer = self.tfidf.build_tokenizer()
+        tokenizer = self.vectorizer.build_tokenizer()
         y = np.zeros((len(X), self.W.shape[1]), dtype=int)
 
         # TODO: parallelize
         for i in range(X.shape[0]):          
             T_d = np.sort(np.array(tokenizer(X[i]), dtype = 'object'))
 
-            T_prime, x_ind, _ = np.intersect1d(self.T, T_d, return_indices=True)
+            T_prime, x_ind, _ = np.intersect1d(self.terms, T_d, return_indices=True)
 
-            F = np.zeros(self.T.shape[0])
+            F = np.zeros(self.terms.shape[0])
             F[x_ind] = 1
 
             W_prime = np.dot(F, self.W)
@@ -208,10 +224,9 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
         
         return y
 
-
     def _predict_categories(self, y):
         """
-        Filter categories using the threshold value
+        Filter categories using the threshold value.
 
         Parameters
         ----------
@@ -224,8 +239,6 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
             The predicted categories.
         """
 
-
-        # Scale between 0 and 1
         y = self.scaler.fit_transform(y)
 
         # Use the median when the threshold is not specified
@@ -235,7 +248,6 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
             y = np.where(y > self.threshold, 1, 0)
 
         return y
-
 
     def predict(self, X):
         """ 
@@ -253,5 +265,4 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
             The predicted categories.
         """
 
-
-        return self._predict_categories(self._predict_weights(X))
+        return self._predict_categories(self._compute_weights(X))

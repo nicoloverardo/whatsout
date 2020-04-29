@@ -135,6 +135,10 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
         new_vocab = { k : self.tfidf.vocabulary_[k] for k in set(self.tfidf.vocabulary_) - set(old_vocab) }
 
         n_new_terms = len(new_vocab)
+
+        # If y is 2-dim, we can compute this like:
+        #   n_new_categories = y.shape[1] - self.W.shape[1]
+        # so that the labels list are not needed.
         n_new_categories = len(set(new_labels) - set(old_labels))
 
         # Expand W.

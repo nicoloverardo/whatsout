@@ -28,7 +28,6 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
 
     Parameters
     ----------
-    labels : 
     threshold : float (defalut=None)
         The threshold value used to filter categories.
         Must be in the range (0, 1).

@@ -28,6 +28,7 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
 
     Parameters
     ----------
+    labels : 
     threshold : float (defalut=None)
         The threshold value used to filter categories.
         Must be in the range (0, 1).
@@ -99,7 +100,8 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
             for i in x_nnz:
                 for j in y_nnz:
                     self.W[i,j] += X_tfidf[d,i]
-    
+
+        return self
     
     def partial_fit(self, X, y, old_labels, new_labels):
         """ 
@@ -125,9 +127,47 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
         self : object
         """
 
-        # TODO
 
-        raise NotImplementedError('Yet to be implemented.')
+        old_vocab = self.tfidf.vocabulary_
+
+        X_tfidf = self.tfidf.partial_refit_transform(X)
+
+        # Probably this is gonna be slow
+        new_vocab = { k : self.tfidf.vocabulary_[k] for k in set(self.tfidf.vocabulary_) - set(old_vocab) }
+
+        n_new_terms = len(new_vocab)
+        n_new_categories = len(set(new_labels) - set(old_labels))
+
+        # Expand W.
+        # Probably self.W.resize is faster?
+        if n_new_terms > 0:
+            self.W = np.concatenate((self.W, np.zeros((n_new_terms,))))
+        if n_new_categories > 0:
+            self.W = np.concatenate((self.W, np.zeros((n_new_categories,))), axis = 1)
+
+        new_terms = np.fromiter(new_vocab.values(), dtype=int)
+
+        n_documents, n_terms = X_tfidf.shape
+
+        self.T = np.array(self.tfidf.get_feature_names(), dtype = 'object')
+
+        # TODO test this
+        for d in range(n_documents):
+            # Get only the terms that we need to update
+            x_nnz = np.intersect1d(X_tfidf[d,].nonzero()[1], new_terms)
+
+            y_nnz = y[d,].nonzero()[0]
+
+            # TODO change this to a faster way
+            for i in x_nnz:
+                for j in y_nnz:
+                    self.W[i,j] = 0
+
+            for i in x_nnz:
+                for j in y_nnz:
+                    self.W[i,j] += X_tfidf[d,i]
+
+        return self
 
 
     def _predict_weights(self, X):

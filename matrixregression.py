@@ -110,12 +110,25 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
 
         old_vocab = self.vectorizer.vocabulary_.copy()
 
+        # Get terms of the new data
+        v_tmp = OnlineTfidfVectorizer()
+        ct = set(v_tmp.fit(X).vocabulary_)
+
+        # Get index of the common terms.
+        # Probably this is gonna be slow
+        vocab_to_update = { k : old_vocab[k] for k in ct.intersection(set(old_vocab)) }
+
         X_tfidf = self.vectorizer.partial_refit_transform(X)
 
-        # Probably this is gonna be slow
-        new_vocab = { k : self.vectorizer.vocabulary_[k] for k in set(self.vectorizer.vocabulary_) - set(old_vocab) }
+        # Get index of the out-of-vocabulary terms only
+        # Same perfomance as above?
+        oov_terms = { k : self.vectorizer.vocabulary_[k] for k in set(self.vectorizer.vocabulary_) - set(old_vocab) }
 
-        n_new_terms = len(new_vocab)
+        # Get all the terms to update 
+        vocab_to_update.update(oov_terms)
+
+        n_terms_to_update = len(vocab_to_update)
+        n_oov_terms = len(oov_terms)
 
         # y must contain both the old categories
         # and the new one(s).
@@ -123,23 +136,22 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
 
         # Expand W.
         # Probably self.W.resize is faster?
-        if n_new_terms > 0:
+        if n_oov_terms > 0:
             self.W = np.concatenate((self.W, 
-                                     np.zeros((n_new_terms, self.W.shape[1]))))
+                                     np.zeros((n_oov_terms, self.W.shape[1]))))
         if n_new_categories > 0:
             self.W = np.concatenate((self.W, 
                                      np.zeros((self.W.shape[0], n_new_categories))), axis = 1)
 
-        new_terms = np.fromiter(new_vocab.values(), dtype=int)
+        terms_to_update = np.fromiter(vocab_to_update.values(), dtype=int)
 
-        n_documents, n_terms = X_tfidf.shape
+        n_documents = X_tfidf.shape[0]
 
         self.terms = np.array(self.vectorizer.get_feature_names(), dtype = 'object')
 
-        # TODO test this
         for d in range(n_documents):
             # Get only the terms that we need to update
-            x_nnz = np.intersect1d(X_tfidf[d,].nonzero()[1], new_terms)
+            x_nnz = np.intersect1d(X_tfidf[d,].nonzero()[1], terms_to_update)
 
             # Still need to check that
             # x_nnz and/or y_nnz are not empty

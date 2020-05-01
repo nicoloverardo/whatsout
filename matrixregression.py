@@ -219,7 +219,7 @@ class MatrixRegression(BaseEstimator, ClassifierMixin):
         """
 
         tokenizer = self.vectorizer.build_tokenizer()
-        y = np.zeros((len(X), self.W.shape[1]), dtype=int)
+        y = np.zeros((X.shape[0], self.W.shape[1]), dtype=int)
 
         # TODO: parallelize
         for i in range(X.shape[0]):          

@@ -42,36 +42,39 @@ def make_prediction(model, vect, text):
     if vect != None:
         with open('models/mlb.pk', 'rb') as file:
             mlb = pickle.load(file)
-            print(mlb.inverse_transform(pred))
+            print("   Result: ", mlb.inverse_transform(pred))
     else:
-        print(pred)
+        print("   Result: ", pred)
     
 
 if __name__ == '__main__':
-    msg = """
-    Welcome to the genie! Remember, you have only
-    3 wishes. Choose your prediction model carefully.
+    msg = """   Choose your prediction model carefully.
 
-    1. [R]andom Forest
-    2. [K]NN
-    3. [N]eural Network
-    4. [S]upport Vector Machine
-    5. [M]atrix Regression
+        1. [R]andom Forest
+        2. [K]NN
+        3. [N]eural Network
+        4. [S]upport Vector Machine
+        5. [M]atrix Regression
 
-    Write [E] if you are not sure and you need time to think.\n
-    Enter your wish: """
+   Write [E] if you are not sure and you need time to think.\n
+   Enter your wish: """
 
+    print("""   Welcome to the genie! Remember, you have only 3 wishes.""")
     while True:
         action = input(msg).upper()
 
         if action == 'E':
             break
         if action not in "RKNSM" or len(action) != 1:
-            print("I don't know how to do that")
-            continue
+            action = input("\n   I don't know how to do that.\n"\
+            "   Press [E] to exit or any other letter to try again: ").upper()
 
-        text = input("""
-        Enter the text of the event you want to predict: """)
+            if action == 'E':
+                break
+            else:
+                continue
+
+        text = input("""   Enter the text of the event you want to predict: """)
 
         if action == 'R':
             model = load_file('models/model_rf.pk')

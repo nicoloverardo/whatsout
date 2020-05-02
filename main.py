@@ -30,7 +30,7 @@ def load_file(path):
         return pickle.load(file)
 
 def make_prediction(model, vect, text):
-    tokenized = PreProcessing().cleanText(text)
+    tokenized = PreProcessing.cleanText(text)
 
     if vect != None:
         X = vect.transform([tokenized])

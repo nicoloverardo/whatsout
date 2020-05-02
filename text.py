@@ -6,11 +6,9 @@ from nltk.corpus import stopwords
 from bs4 import BeautifulSoup
 
 class PreProcessing():
-    def __init__(self, file=None):
-        self.file = file
-    
-    def preprocess(self):
-        df = pd.read_csv(self.file, encoding="utf-8")
+    @staticmethod
+    def preprocess_csv(file):
+        df = pd.read_csv(file, encoding="utf-8")
         df["cleaned_desc"] = df["description"].apply(self.cleanText)
         df["cleaned_title"] = df["title"].apply(self.cleanText)
         df["full_cleaned"] = df["cleaned_desc"] + df["cleaned_title"]
@@ -18,8 +16,8 @@ class PreProcessing():
 
         return df["full_cleaned"].values
 
-
-    def cleanText(self, x):
+    @staticmethod
+    def cleanText(x):
         soup = BeautifulSoup(x, 'lxml')
         no_html_text = soup.get_text()
         tokens = nltk.word_tokenize(no_html_text)

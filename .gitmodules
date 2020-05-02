@@ -1,3 +1,0 @@
-[submodule "online_vectorizers"]
-	path = online_vectorizers
-	url = https://github.com/ido-sh/online_vectorizers

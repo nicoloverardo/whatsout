@@ -9,8 +9,8 @@ class PreProcessing():
     @staticmethod
     def preprocess_csv(file):
         df = pd.read_csv(file, encoding="utf-8")
-        df["cleaned_desc"] = df["description"].apply(self.cleanText)
-        df["cleaned_title"] = df["title"].apply(self.cleanText)
+        df["cleaned_desc"] = df["description"].apply(cleanText)
+        df["cleaned_title"] = df["title"].apply(cleanText)
         df["full_cleaned"] = df["cleaned_desc"] + df["cleaned_title"]
         df = df.reset_index()
 

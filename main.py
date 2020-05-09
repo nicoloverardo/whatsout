@@ -35,7 +35,7 @@ def make_prediction(model, vect, text):
     if vect != None:
         X = vect.transform([tokenized])
     else:
-        X = np.array([tokenized])
+        X = np.array([text])
 
     pred = model.predict(X)
 
@@ -99,7 +99,6 @@ if __name__ == '__main__':
             break
         elif action == 'M':
             model = load_file('models/model_mr.pk')
-            vect = load_file('models/bow_vectorizer.pk')
 
             make_prediction(model, None, text)
             break

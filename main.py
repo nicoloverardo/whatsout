@@ -39,12 +39,9 @@ def make_prediction(model, vect, text):
 
     pred = model.predict(X)
 
-    if vect != None:
-        with open('models/mlb.pk', 'rb') as file:
+    with open('models/mlb.pk', 'rb') as file:
             mlb = pickle.load(file)
             print("   Result: ", mlb.inverse_transform(pred))
-    else:
-        print("   Result: ", pred)
     
 
 if __name__ == '__main__':
